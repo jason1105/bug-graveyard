@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bug 墓园 · Bug Graveyard</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --fog:       #0d1a12;
+      --deep:      #0a1510;
+      --moss:      #1a2e1f;
+      --stone:     #2a3530;
+      --stone-lit: #3a4a44;
+      --crack:     #1c2820;
+      --mist:      rgba(160,210,175,0.07);
+      --glow:      #7ec89a;
+      --glow-dim:  #4a8a62;
+      --epitaph:   #c8dfd0;
+      --faint:     #6a8a74;
+      --gold:      #c8a84b;
+      --gold-dim:  #8a6a20;
+      --danger:    #c84a4a;
+      --tag-bg:    rgba(50,80,60,0.6);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', Georgia, serif;
+      background: var(--deep);
+      color: var(--epitaph);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Sky gradient ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 40% at 50% 0%, #102418 0%, transparent 70%),
+        linear-gradient(180deg, #050d09 0%, #0a1510 40%, #0d1a12 100%);
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    /* ── Moon ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 40px;
+      right: 120px;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #e8f5e0, #c8dfc0 60%, #90b095);
+      box-shadow:
+        0 0 30px 10px rgba(200,230,210,0.18),
+        0 0 80px 30px rgba(160,210,175,0.08);
+      z-index: -1;
+      pointer-events: none;
+      animation: moonPulse 8s ease-in-out infinite;
+    }
+    @keyframes moonPulse {
+      0%,100% { opacity:.85; }
+      50%      { opacity: 1; }
+    }
+
+    /* ── Firefly canvas ── */
+    #fireflies { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── Fog strips ── */
+    .fog-layer {
+      position: fixed;
+      bottom: 0; left: -50%;
+      width: 200%; height: 160px;
+      z-index: 1;
+      pointer-events: none;
+      background: linear-gradient(transparent, rgba(13,26,18,0.7) 60%, rgba(10,21,16,0.9));
+    }
+    .fog-layer.mid {
+      height: 80px;
+      bottom: 60px;
+      opacity: .4;
+      animation: fogDrift 22s linear infinite;
+    }
+    @keyframes fogDrift {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(20%); }
+    }
+
+    /* ── Layout ── */
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 60px 0 32px;
+      position: relative;
+    }
+    .header-crows {
+      font-size: 1.4rem;
+      letter-spacing: .6em;
+      opacity: .35;
+      margin-bottom: 12px;
+      animation: crowFloat 6s ease-in-out infinite;
+    }
+    @keyframes crowFloat {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-5px); }
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 900;
+      letter-spacing: .12em;
+      color: var(--epitaph);
+      text-shadow:
+        0 0 20px rgba(126,200,154,0.3),
+        0 2px 8px rgba(0,0,0,0.8);
+      margin-bottom: 8px;
+    }
+    h1 span { color: var(--glow); }
+    .subtitle {
+      font-size: .95rem;
+      color: var(--faint);
+      letter-spacing: .25em;
+      font-style: italic;
+    }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin: 28px 0 36px;
+      padding: 18px 32px;
+      border: 1px solid rgba(126,200,154,0.12);
+      border-radius: 4px;
+      background: rgba(10,21,16,0.6);
+      backdrop-filter: blur(6px);
+    }
+    .stat-item { text-align: center; }
+    .stat-value {
+      display: block;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--glow);
+      text-shadow: 0 0 12px rgba(126,200,154,0.4);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      font-size: .75rem;
+      color: var(--faint);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-wrap {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
+    .search-wrap::before {
+      content: '🔍';
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: .9rem;
+      opacity: .5;
+      pointer-events: none;
+    }
+    input[type="search"] {
+      width: 100%;
+      padding: 11px 16px 11px 40px;
+      background: rgba(26,46,31,0.7);
+      border: 1px solid rgba(126,200,154,0.2);
+      border-radius: 4px;
+      color: var(--epitaph);
+      font-family: inherit;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input[type="search"]:focus {
+      border-color: var(--glow-dim);
+      box-shadow: 0 0 0 3px rgba(126,200,154,0.08);
+    }
+    input[type="search"]::placeholder { color: var(--faint); opacity: .7; }
+
+    .btn {
+      padding: 11px 20px;
+      border: 1px solid rgba(126,200,154,0.25);
+      border-radius: 4px;
+      background: rgba(26,46,31,0.6);
+      color: var(--epitaph);
+      font-family: inherit;
+      font-size: .85rem;
+      cursor: pointer;
+      letter-spacing: .1em;
+      transition: background .2s, border-color .2s, box-shadow .2s;
+      display: flex; align-items: center; gap: 8px;
+      white-space: nowrap;
+    }
+    .btn:hover {
+      background: rgba(40,70,48,0.8);
+      border-color: var(--glow-dim);
+      box-shadow: 0 0 10px rgba(126,200,154,0.1);
+    }
+    .btn.active {
+      background: rgba(60,90,68,0.7);
+      border-color: var(--glow);
+      color: var(--glow);
+    }
+    .btn-icon { font-size: 1.1rem; }
+
+    /* ── Sort select ── */
+    select {
+      padding: 11px 16px;
+      background: rgba(26,46,31,0.7);
+      border: 1px solid rgba(126,200,154,0.2);
+      border-radius: 4px;
+      color: var(--epitaph);
+      font-family: inherit;
+      font-size: .85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ── Grid ── */
+    .graveyard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 36px 28px;
+      padding: 20px 0 40px;
+    }
+
+    /* ── Gravestone card ── */
+    .gravestone {
+      position: relative;
+      cursor: default;
+      transition: transform .3s ease, filter .3s ease;
+    }
+    /* Each stone gets a unique tilt from JS; here we set the transform-origin */
+    .gravestone { transform-origin: bottom center; }
+    .gravestone:hover {
+      filter: brightness(1.18) drop-shadow(0 0 14px rgba(126,200,154,0.25));
+      z-index: 10;
+    }
+
+    .stone-outer {
+      position: relative;
+      padding: 4px;
+      border-radius: 48% 48% 4px 4px / 32% 32% 4px 4px;
+    }
+
+    /* Stone SVG arch top */
+    .stone-shape {
+      background:
+        /* noise texture via repeating gradient */
+        repeating-linear-gradient(
+          17deg,
+          rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px,
+          transparent 1px, transparent 6px
+        ),
+        repeating-linear-gradient(
+          -17deg,
+          rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px,
+          transparent 1px, transparent 8px
+        ),
+        linear-gradient(180deg,
+          #3a4a40 0%,
+          #2d3d35 30%,
+          #253028 70%,
+          #1e2820 100%
+        );
+      border: 2px solid #3a4e42;
+      border-radius: 48% 48% 4px 4px / 32% 32% 4px 4px;
+      padding: 28px 22px 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        inset 0 -2px 8px rgba(0,0,0,0.5),
+        0 8px 30px rgba(0,0,0,0.6),
+        0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    /* Crack accent */
+    .stone-shape::before {
+      content: '';
+      position: absolute;
+      top: 20px; right: 28px;
+      width: 1px; height: 45px;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.4) 40%, transparent);
+      transform: rotate(8deg);
+    }
+    /* Lichen accent */
+    .stone-shape::after {
+      content: '';
+      position: absolute;
+      bottom: 10px; left: 18px;
+      width: 30px; height: 12px;
+      background: radial-gradient(ellipse, rgba(80,120,70,0.25), transparent);
+      border-radius: 50%;
+    }
+
+    /* Cross or symbol at top */
+    .stone-symbol {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      opacity: .55;
+      letter-spacing: .3em;
+    }
+
+    /* Bug alias — the "name on the stone" */
+    .stone-alias {
+      text-align: center;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--epitaph);
+      letter-spacing: .08em;
+      line-height: 1.4;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      margin-bottom: 6px;
+    }
+
+    .stone-divider {
+      border: none;
+      border-top: 1px solid rgba(200,223,208,0.15);
+      margin: 10px 0;
+    }
+
+    /* Born/died */
+    .stone-dates {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--faint);
+      letter-spacing: .12em;
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+    .stone-dates .days {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border: 1px solid rgba(200,168,75,0.3);
+      border-radius: 20px;
+      color: var(--gold-dim);
+      font-size: .72rem;
+      letter-spacing: .1em;
+    }
+
+    /* Epitaph text */
+    .stone-epitaph {
+      font-size: .84rem;
+      line-height: 1.75;
+      color: var(--epitaph);
+      opacity: .88;
+      text-align: center;
+      margin-bottom: 12px;
+      font-style: italic;
+      white-space: pre-line;
+    }
+
+    /* Motto */
+    .stone-motto {
+      font-size: .75rem;
+      color: var(--gold-dim);
+      text-align: center;
+      font-style: italic;
+      opacity: .85;
+      margin-bottom: 14px;
+      padding-top: 6px;
+      border-top: 1px dotted rgba(200,168,75,0.2);
+    }
+
+    /* Labels */
+    .stone-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .label-tag {
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: var(--tag-bg);
+      border: 1px solid rgba(126,200,154,0.15);
+      font-size: .68rem;
+      color: var(--glow-dim);
+      letter-spacing: .08em;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+
+    /* Issue link badge */
+    .stone-issue-link {
+      display: block;
+      text-align: center;
+      margin-top: 6px;
+    }
+    .stone-issue-link a {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: rgba(20,35,25,0.8);
+      border: 1px solid rgba(126,200,154,0.2);
+      font-size: .72rem;
+      color: var(--faint);
+      text-decoration: none;
+      letter-spacing: .08em;
+      transition: color .2s, border-color .2s;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+    .stone-issue-link a:hover {
+      color: var(--glow);
+      border-color: var(--glow-dim);
+    }
+
+    /* Stone base / pedestal */
+    .stone-base {
+      height: 14px;
+      background: linear-gradient(180deg, #2a3830, #1a2820);
+      border-radius: 0 0 6px 6px;
+      border: 2px solid #3a4e42;
+      border-top: none;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    .stone-plinth {
+      height: 8px;
+      margin: 0 10px;
+      background: linear-gradient(180deg, #1a2820, #141e18);
+      border-radius: 0 0 8px 8px;
+      border: 2px solid #2e4038;
+      border-top: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--faint);
+      font-style: italic;
+      opacity: .7;
+    }
+    .empty-state p { margin: 8px 0; font-size: .95rem; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 40px 0 20px;
+      color: var(--faint);
+      font-size: .78rem;
+      letter-spacing: .15em;
+      opacity: .6;
+      position: relative;
+      z-index: 2;
+    }
+    footer a { color: var(--faint); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--deep); }
+    ::-webkit-scrollbar-thumb { background: var(--stone); border-radius: 3px; }
+
+    /* ── Entrance animation ── */
+    @keyframes stoneRise {
+      from { opacity: 0; transform: translateY(20px) rotate(var(--tilt,0deg)); }
+      to   { opacity: 1; transform: translateY(0)    rotate(var(--tilt,0deg)); }
+    }
+    .gravestone { animation: stoneRise .5s ease both; }
+
+    /* ── No results message ── */
+    .no-results {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 60px;
+      color: var(--faint);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="fireflies"></canvas>
+<div class="fog-layer"></div>
+<div class="fog-layer mid"></div>
+
+<div class="container">
+  <header>
+    <div class="header-crows">🐦‍⬛ &nbsp;&nbsp;&nbsp; 🐦‍⬛ &nbsp;&nbsp;&nbsp; 🐦‍⬛</div>
+    <h1>⚰️ Bug <span>墓园</span></h1>
+    <p class="subtitle">In Memoriam · 愿每一个修复的 Bug 安息于此</p>
+  </header>
+
+  <div class="stats" id="stats">
+    <div class="stat-item">
+      <span class="stat-value" id="stat-total">—</span>
+      <span class="stat-label">已安葬 Bugs</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-avg">—</span>
+      <span class="stat-label">平均寿命（天）</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-oldest">—</span>
+      <span class="stat-label">最长寿 Bug（天）</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <input type="search" id="searchInput" placeholder="搜索 Bug 别名、标题、标签…" />
+    </div>
+    <select id="sortSelect">
+      <option value="newest">最新安葬</option>
+      <option value="oldest_entry">最早安葬</option>
+      <option value="longest">寿命最长</option>
+      <option value="shortest">寿命最短</option>
+    </select>
+    <button class="btn" id="soundBtn" title="切换氛围音效">
+      <span class="btn-icon">🔇</span>
+      <span>氛围音</span>
+    </button>
+  </div>
+
+  <div class="graveyard-grid" id="gravestoneGrid">
+    <div class="no-results" style="grid-column:1/-1;padding:60px;color:var(--faint);">
+      正在召唤亡灵…
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>⚰️ Bug Graveyard · Powered by Claude AI · Every bug has a story worth mourning.</p>
+  <p style="margin-top:6px;">
+    <a href="https://github.com/lvw1105/bug-graveyard" target="_blank">View on GitHub</a>
+  </p>
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+//  Embedded fallback data (shown if fetch fails)
+// ─────────────────────────────────────────────
+const FALLBACK = {"epitaphs":[{"id":"issue-1-20260101120000","issue_number":1,"issue_url":"https://github.com/example/myapp/issues/1","title":"NullPointerException in UserService.getById() when user is deleted","alias":"虚无的引用幽灵","epitaph_text":"它一生追求对象，却始终抓住空气。\n每次被调用，都如勇士赴死，从不带盔甲。\n无数次 try-catch 拦不住它奔赴 null 的决心。\n\n——世间最痛苦的不是 NPE，而是你明明加了判空，它偏偏绕过去了。","motto":"世间最痛苦的不是 NPE，而是你明明加了判空，它偏偏绕过去了。","born":"2025年11月03日","died":"2026年01月01日","days_lived":59,"labels":["bug","critical","backend"]},{"id":"issue-2-20260215093000","issue_number":2,"issue_url":"https://github.com/example/myapp/issues/2","title":"React useEffect causes infinite re-render loop on profile page","alias":"无限轮回的渲染魔咒","epitaph_text":"它热爱变化，所以每次更新都触发下一次更新。\n浏览器风扇的轰鸣，是它短暂一生最辉煌的葬礼交响乐。\n依赖数组里少了一个括号，它便在递归地狱里永生。\n\n——useEffect 的依赖数组是程序员最容易忘记的遗嘱。","motto":"useEffect 的依赖数组是程序员最容易忘记的遗嘱。","born":"2025年12月20日","died":"2026年02月15日","days_lived":57,"labels":["bug","frontend","react","performance"]},{"id":"issue-3-20260310160000","issue_number":3,"issue_url":"https://github.com/example/myapp/issues/3","title":"Modal dialog appears behind navigation bar due to z-index conflict","alias":"层叠上下文囚徒","epitaph_text":"它明明置顶，却被人踩在脚下——z-index: 9999 的悲剧。\n父元素的 transform 是它永远跨越不过的监狱高墙。\n它用整个弹窗的余生，诠释了什么叫「看得见，点不到」。\n\n——CSS 层叠规则：让你以为自己懂了，直到下一个 modal。","motto":"CSS 层叠规则：让你以为自己懂了，直到下一个 modal。","born":"2026年01月08日","died":"2026年03月10日","days_lived":61,"labels":["bug","css","frontend","ui"]},{"id":"issue-4-20260401000000","issue_number":4,"issue_url":"https://github.com/example/myapp/issues/4","title":"Pagination shows wrong results - off-by-one error in page offset calculation","alias":"差一步的永恒错位","epitaph_text":"它活在第 0 页和第 1 页的边界，两边都不是它的归宿。\n每次分页查询，总有一条数据在它手上神秘蒸发或凭空复制。\n`offset = (page - 1) * size` 这行注释，是修复它的程序员留下的最后忏悔。\n\n——所有 off-by-one 错误都是从「下标从 0 开始」那天注定的。","motto":"所有 off-by-one 错误都是从「下标从 0 开始」那天注定的。","born":"2026年02月14日","died":"2026年04月01日","days_lived":46,"labels":["bug","backend","database","pagination"]},{"id":"issue-5-20260520120000","issue_number":5,"issue_url":"https://github.com/example/myapp/issues/5","title":"ConcurrentModificationException when multiple threads update shopping cart simultaneously","alias":"并发洪流中的殉道者","epitaph_text":"它死于高并发的峰值时刻，那一秒有三个线程同时爱上了同一个 ArrayList。\n它见证了什么叫做「线程安全」——那是别人家代码拥有的东西。\n终于，一把 ReentrantLock 为它盖棺，也为生产环境的告警邮件画上了句号。\n\n——多线程如婚姻，锁是必要的，但加多了也是灾难。","motto":"多线程如婚姻，锁是必要的，但加多了也是灾难。","born":"2026年03月01日","died":"2026年05月20日","days_lived":80,"labels":["bug","concurrency","java","critical","backend"]}]};
+
+// ─────────────────────────────────────────────
+//  Fireflies
+// ─────────────────────────────────────────────
+(function initFireflies() {
+  const canvas = document.getElementById('fireflies');
+  const ctx = canvas.getContext('2d');
+  let W, H, flies = [];
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function spawnFly() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H * 0.9 + H * 0.05,
+      r: Math.random() * 1.8 + 0.6,
+      speedX: (Math.random() - 0.5) * 0.4,
+      speedY: (Math.random() - 0.5) * 0.3,
+      phase: Math.random() * Math.PI * 2,
+      period: 2000 + Math.random() * 4000,
+      hue: 100 + Math.random() * 60   // green-ish
+    };
+  }
+
+  for (let i = 0; i < 55; i++) flies.push(spawnFly());
+
+  let last = 0;
+  function tick(ts) {
+    const dt = ts - last; last = ts;
+    ctx.clearRect(0, 0, W, H);
+
+    flies.forEach(f => {
+      f.x += f.speedX;
+      f.y += f.speedY;
+      f.phase += dt / f.period * Math.PI * 2;
+
+      if (f.x < -10) f.x = W + 10;
+      if (f.x > W + 10) f.x = -10;
+      if (f.y < -10) f.y = H + 10;
+      if (f.y > H + 10) f.y = -10;
+
+      const alpha = (Math.sin(f.phase) * 0.5 + 0.5) * 0.75 + 0.05;
+      const r = f.r * (0.8 + Math.sin(f.phase) * 0.2);
+
+      const grd = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r * 4);
+      grd.addColorStop(0, `hsla(${f.hue},80%,75%,${alpha})`);
+      grd.addColorStop(0.4, `hsla(${f.hue},70%,55%,${alpha * 0.4})`);
+      grd.addColorStop(1, `hsla(${f.hue},60%,40%,0)`);
+
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, r * 4, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${f.hue},90%,90%,${alpha})`;
+      ctx.fill();
+    });
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+// ─────────────────────────────────────────────
+//  Web Audio – ambient wind
+// ─────────────────────────────────────────────
+let audioCtx = null, windNodes = [], soundOn = false;
+
+function buildWind(ctx) {
+  // White noise → bandpass → gain
+  const bufSize = ctx.sampleRate * 4;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.loop = true;
+
+  const bp1 = ctx.createBiquadFilter();
+  bp1.type = 'bandpass'; bp1.frequency.value = 320; bp1.Q.value = 0.4;
+
+  const bp2 = ctx.createBiquadFilter();
+  bp2.type = 'bandpass'; bp2.frequency.value = 180; bp2.Q.value = 0.3;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 2);
+
+  // LFO for howling
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.07;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.03;
+  lfo.connect(lfoGain);
+  lfoGain.connect(gain.gain);
+  lfo.start();
+
+  src.connect(bp1); bp1.connect(bp2); bp2.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
+  return [src, gain, lfo];
+}
+
+function toggleSound() {
+  const btn = document.getElementById('soundBtn');
+  if (!soundOn) {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    windNodes = buildWind(audioCtx);
+    soundOn = true;
+    btn.classList.add('active');
+    btn.querySelector('.btn-icon').textContent = '🔊';
+  } else {
+    if (windNodes.length) {
+      windNodes[1].gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+      setTimeout(() => { windNodes.forEach(n => { try { n.stop?.(); n.disconnect?.(); } catch(e){} }); windNodes = []; }, 1600);
+    }
+    soundOn = false;
+    btn.classList.remove('active');
+    btn.querySelector('.btn-icon').textContent = '🔇';
+  }
+}
+document.getElementById('soundBtn').addEventListener('click', toggleSound);
+
+// ─────────────────────────────────────────────
+//  Render
+// ─────────────────────────────────────────────
+const SYMBOLS = ['✝', '✞', '⚙', '☠', '⌘', '⛧', '✶', '⌬'];
+const TILTS   = [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5];
+
+function symbolFor(idx) { return SYMBOLS[idx % SYMBOLS.length]; }
+function tiltFor(idx)   { return TILTS[idx % TILTS.length]; }
+
+function buildCard(ep, idx) {
+  const tilt = tiltFor(idx);
+  const sym  = symbolFor(idx);
+  const delay = (idx % 12) * 60;
+
+  // Split epitaph into body + motto for separate display
+  const parts = (ep.epitaph_text || '').split(/\n\n——/);
+  const bodyText  = parts[0] || '';
+  const mottoText = ep.motto || (parts[1] ? parts[1] : '');
+
+  const labelsHtml = (ep.labels || []).map(l =>
+    `<span class="label-tag">${escapeHtml(l)}</span>`
+  ).join('');
+
+  const issueLink = ep.issue_url
+    ? `<div class="stone-issue-link">
+         <a href="${escapeHtml(ep.issue_url)}" target="_blank" rel="noopener">
+           🔗 Issue #${ep.issue_number}
+         </a>
+       </div>`
+    : '';
+
+  return `
+  <div class="gravestone" style="--tilt:${tilt}deg;transform:rotate(${tilt}deg);animation-delay:${delay}ms"
+       data-title="${escapeAttr(ep.title)}"
+       data-alias="${escapeAttr(ep.alias)}"
+       data-labels="${escapeAttr((ep.labels||[]).join(' '))}">
+    <div class="stone-outer">
+      <div class="stone-shape">
+        <div class="stone-symbol">${sym}</div>
+        <div class="stone-alias">${escapeHtml(ep.alias)}</div>
+        <hr class="stone-divider"/>
+        <div class="stone-dates">
+          生于 ${escapeHtml(ep.born)}<br/>
+          卒于 ${escapeHtml(ep.died)}<br/>
+          <span class="days">享年 ${ep.days_lived} 天</span>
+        </div>
+        <div class="stone-epitaph">${escapeHtml(bodyText)}</div>
+        ${mottoText ? `<div class="stone-motto">「${escapeHtml(mottoText)}」</div>` : ''}
+        ${labelsHtml ? `<div class="stone-labels">${labelsHtml}</div>` : ''}
+        ${issueLink}
+      </div>
+    </div>
+    <div class="stone-base"></div>
+    <div class="stone-plinth"></div>
+  </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function escapeAttr(s) {
+  return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function renderStats(list) {
+  document.getElementById('stat-total').textContent = list.length;
+  if (!list.length) {
+    document.getElementById('stat-avg').textContent = '—';
+    document.getElementById('stat-oldest').textContent = '—';
+    return;
+  }
+  const avg = Math.round(list.reduce((a,b) => a + (b.days_lived||0), 0) / list.length);
+  const max = Math.max(...list.map(e => e.days_lived||0));
+  document.getElementById('stat-avg').textContent = avg;
+  document.getElementById('stat-oldest').textContent = max;
+}
+
+let allEpitaphs = [];
+
+function renderGrid(list) {
+  const grid = document.getElementById('gravestoneGrid');
+  if (!list.length) {
+    grid.innerHTML = '<div class="no-results">此处空无一物，亦或尚无 Bug 安息于此。</div>';
+    return;
+  }
+  grid.innerHTML = list.map((ep, i) => buildCard(ep, i)).join('');
+}
+
+function applyFilters() {
+  const q     = document.getElementById('searchInput').value.trim().toLowerCase();
+  const sort  = document.getElementById('sortSelect').value;
+
+  let list = [...allEpitaphs];
+
+  if (q) {
+    list = list.filter(ep =>
+      (ep.alias  || '').toLowerCase().includes(q) ||
+      (ep.title  || '').toLowerCase().includes(q) ||
+      (ep.labels || []).some(l => l.toLowerCase().includes(q))
+    );
+  }
+
+  switch (sort) {
+    case 'newest':       list.sort((a,b) => b.id.localeCompare(a.id)); break;
+    case 'oldest_entry': list.sort((a,b) => a.id.localeCompare(b.id)); break;
+    case 'longest':      list.sort((a,b) => (b.days_lived||0) - (a.days_lived||0)); break;
+    case 'shortest':     list.sort((a,b) => (a.days_lived||0) - (b.days_lived||0)); break;
+  }
+
+  renderGrid(list);
+}
+
+document.getElementById('searchInput').addEventListener('input', applyFilters);
+document.getElementById('sortSelect').addEventListener('change', applyFilters);
+
+// ─────────────────────────────────────────────
+//  Data loading
+// ─────────────────────────────────────────────
+async function loadData() {
+  let data = null;
+  try {
+    const res = await fetch('epitaphs/epitaphs.json?_=' + Date.now());
+    if (res.ok) data = await res.json();
+  } catch (e) { /* fallback below */ }
+
+  if (!data || !data.epitaphs) data = FALLBACK;
+
+  allEpitaphs = data.epitaphs || [];
+  renderStats(allEpitaphs);
+  applyFilters();
+}
+
+loadData();
+</script>
+</body>
+</html>
