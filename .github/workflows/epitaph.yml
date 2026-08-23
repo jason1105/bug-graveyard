@@ -40,11 +40,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install anthropic
+        run: pip install openai
 
       - name: Generate epitaph
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Issue event fields
           EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -66,7 +67,7 @@ jobs:
           import os
           import json
           import datetime
-          import anthropic
+          from openai import OpenAI
 
           event_name = os.environ.get("EVENT_NAME", "issues")
 
@@ -133,13 +134,15 @@ jobs:
           存活天数：{days_lived} 天"""
 
           # ── Call Claude API ────────────────────────────────────────────────
-          client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-          message = client.messages.create(
-              model="claude-haiku-4-5-20251001",
+          MODEL = os.environ.get("OPENROUTER_MODEL") or "deepseek/deepseek-chat"
+          client = OpenAI(base_url="https://openrouter.ai/api/v1",
+                          api_key=os.environ["OPENROUTER_API_KEY"])
+          message = client.chat.completions.create(
+              model=MODEL,
               max_tokens=512,
               messages=[{"role": "user", "content": prompt}]
           )
-          epitaph_raw = message.content[0].text.strip()
+          epitaph_raw = message.choices[0].message.content.strip()
           print(f"[epitaph] Raw response:\n{epitaph_raw}")
 
           # ── Parse response ─────────────────────────────────────────────────
