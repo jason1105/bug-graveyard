@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
       issues: read
 
     steps:
@@ -120,16 +121,16 @@ jobs:
 
           prompt = f"""你是一个幽默的程序员，正在为一个已修复的 Bug 撰写墓志铭。请用诙谐、富有程序员文化的语气，为以下 Bug 写一段墓志铭。
 
-要求（严格按照此格式，不要多余解释）：
-第一行：Bug 的诗意别名（不超过10字，不含标点）
-第二行：生卒年月（直接输出，如：生于 {born_str}，卒于 {died_str}）
-第三行至第五行：2-3句精彩的墓志铭正文，可以包含技术梗、程序员黑话，每句一行
-最后一行：一句令人回味的格言，以"格言："开头
+          要求（严格按照此格式，不要多余解释）：
+          第一行：Bug 的诗意别名（不超过10字，不含标点）
+          第二行：生卒年月（直接输出，如：生于 {born_str}，卒于 {died_str}）
+          第三行至第五行：2-3句精彩的墓志铭正文，可以包含技术梗、程序员黑话，每句一行
+          最后一行：一句令人回味的格言，以"格言："开头
 
-Issue标题：{title}
-描述：{body_excerpt}
-标签：{labels_str}
-存活天数：{days_lived} 天"""
+          Issue标题：{title}
+          描述：{body_excerpt}
+          标签：{labels_str}
+          存活天数：{days_lived} 天"""
 
           # ── Call Claude API ────────────────────────────────────────────────
           client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -198,4 +199,16 @@ Issue标题：{title}
           git add epitaphs/epitaphs.json
           git diff --cached --quiet && echo "Nothing to commit" && exit 0
           git commit -m "⚰️ Bury issue #${{ github.event.issue.number || github.event.inputs.issue_number }}: ${{ github.event.issue.title || github.event.inputs.issue_title }}"
-          git push
+          # --- 改造：bot 不再直推 main，改为开 PR 并自动合并 ---
+          git fetch origin main --depth=1 -q
+          if [ -z "$(git log FETCH_HEAD..HEAD --oneline)" ]; then
+            echo "No new commits; nothing to do."
+            exit 0
+          fi
+          BRANCH="bot/$(date -u +%Y%m%d-%H%M%S)"
+          git push -u origin "HEAD:$BRANCH"
+          export GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          gh pr create --base main --head "$BRANCH" \
+            --title "$(git log -1 --pretty=%s)" \
+            --body "Automated update by workflow: ${{ github.workflow }}"
+          gh pr merge "$BRANCH" --squash --delete-branch
