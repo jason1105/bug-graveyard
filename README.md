@@ -11,7 +11,7 @@ A GitHub Pages site where Claude AI automatically writes humorous epitaphs for e
 ## How it works
 
 1. An issue is closed in a repository.
-2. The `epitaph.yml` workflow fires, sends the issue details to Claude claude-haiku-4-5-20251001.
+2. The `epitaph.yml` workflow fires, sending the issue details to an LLM via OpenRouter (default `deepseek/deepseek-chat`).
 3. Claude writes a creative Chinese-language epitaph with a poetic alias, dates, body text, and a closing maxim.
 4. The bot prepends the result to `epitaphs/epitaphs.json` and commits it.
 5. GitHub Pages re-deploys; the new gravestone appears on the site.
@@ -23,7 +23,7 @@ A GitHub Pages site where Claude AI automatically writes humorous epitaphs for e
 1. **Fork or use this repo** as your graveyard repository.
 2. Add your Anthropic API key as a repository secret:
    - `Settings → Secrets and variables → Actions → New repository secret`
-   - Name: `ANTHROPIC_API_KEY`
+   - Name: `OPENROUTER_API_KEY`
 3. Enable GitHub Pages:
    - `Settings → Pages → Source: Deploy from a branch → Branch: main / root`
 4. The workflow is already at `.github/workflows/epitaph.yml`. Close any issue to test.
@@ -96,7 +96,7 @@ The workflow supports manual runs with custom inputs so you can test without clo
 | `index.html` | The graveyard page — self-contained, no build step |
 | `.nojekyll` | Tells GitHub Pages to skip Jekyll processing |
 
-**Model:** `claude-haiku-4-5-20251001` (fast and cheap; swap to `claude-sonnet-4-5` for more elaborate prose).
+**Model:** set the `OPENROUTER_MODEL` repository variable to any OpenRouter model ID. Default is `deepseek/deepseek-chat`.
 
 **Max stored epitaphs:** 100 (oldest are dropped). Change the slice in the workflow Python script.
 
