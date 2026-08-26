@@ -44,6 +44,10 @@ jobs:
 
       - name: Generate epitaph
         env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          # 过渡期保留 OpenRouter 兜底，切稳后可删
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -140,9 +144,9 @@ jobs:
           存活天数：{days_lived} 天"""
 
           # ── Call Claude API ────────────────────────────────────────────────
-          MODEL = os.environ.get("OPENROUTER_MODEL") or "deepseek/deepseek-chat"
-          client = OpenAI(base_url="https://openrouter.ai/api/v1",
-                          api_key=os.environ["OPENROUTER_API_KEY"])
+          MODEL = os.environ.get("LLM_MODEL") or os.environ.get("OPENROUTER_MODEL") or "deepseek-v4-flash"
+          client = OpenAI(base_url=os.environ.get("LLM_BASE_URL") or "https://api.deepseek.com",
+                          api_key=os.environ.get("LLM_API_KEY") or os.environ.get("OPENROUTER_API_KEY", ""))
           message = client.chat.completions.create(
               model=MODEL,
               max_tokens=512,
