@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      issues: read
+      issues: write   # notify 步骤需要开 issue
 
     steps:
       - name: Checkout repository
@@ -65,6 +65,7 @@ jobs:
         run: |
           python << 'PYEOF'
           import os
+          import sys
           import json
           import datetime
           from openai import OpenAI
@@ -105,6 +106,11 @@ jobs:
                   return datetime.datetime.utcnow()
               created_at = parse_dt(created_str)
               closed_at  = parse_dt(closed_str)
+
+          # 跳过失败告警 issue：它们带 ci-failure 标签，不该被写墓志铭
+          if "ci-failure" in labels:
+              print("这是 CI 失败告警 issue，跳过墓志铭生成。")
+              sys.exit(0)
 
           # ── Calculate lifespan ─────────────────────────────────────────────
           days_lived = max(0, (closed_at - created_at).days)
@@ -215,3 +221,22 @@ jobs:
             --title "$(git log -1 --pretty=%s)" \
             --body "Automated update by workflow: ${{ github.workflow }}"
           gh pr merge "$BRANCH" --squash --delete-branch
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="⚠️ 工作流 ${{ github.workflow }} 运行失败"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY="[${{ github.workflow }}]($RUN_URL) 于 $(date -u '+%Y-%m-%d %H:%M UTC') 失败（触发 ${{ github.event_name }}）。请查看日志。"
+          EXISTING=$(gh issue list --state open --search "in:title $TITLE" --json number,title \
+                     --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number")
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh label create ci-failure --color d73a4a --description "自动化工作流失败告警" 2>/dev/null || true
+            gh issue create --title "$TITLE" --body "$BODY" --label ci-failure 2>/dev/null \
+              || gh issue create --title "$TITLE" --body "$BODY"
+          fi
+
