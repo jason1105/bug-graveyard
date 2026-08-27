@@ -98,6 +98,8 @@ for l in lines[2:]:
     else:
         body_lines.append(l)
 epitaph_body = "\n".join(body_lines)
+if not epitaph_body.strip():           # 空正文兜底，避免无字墓志
+    epitaph_body = "此 bug 已归档，愿它不再复现。"
 motto        = motto_line or "愿代码世界少一个 bug，多一份宁静。"
 
 epitaph_text = f"{epitaph_body}\n\n——{motto}"
